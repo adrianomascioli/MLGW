@@ -34,7 +34,7 @@ sys.path.insert(1, os.path.dirname(__file__)) 	#adding to path folder where mlgw
 from .EM_MoE import MoE_model #WARNING commented out 
 from .ML_routines import PCA_model, add_extra_features, jac_extra_features, augment_features
 from .NN_model import mlgw_NN
-from .precession_helper import angle_manager, get_alpha0_beta0_gamma0, angle_params_keeper, CosinesLayer, augment_for_angles, to_polar, get_beta_trend_fast, get_fref_at_time_IMR
+#from .precession_helper import angle_manager, get_alpha0_beta0_gamma0, angle_params_keeper, CosinesLayer, augment_for_angles, to_polar, get_beta_trend_fast, get_fref_at_time_IMR
 from scipy.special import factorial as fact
 from pathlib import Path
 import scipy
