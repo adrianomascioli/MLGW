@@ -32,7 +32,7 @@ from tensorflow.python.framework.convert_to_constants import convert_variables_t
 import inspect
 sys.path.insert(1, os.path.dirname(__file__)) 	#adding to path folder where mlgw package is installed (ugly?)
 from .EM_MoE import MoE_model #WARNING commented out 
-from .ML_routines import PCA_model, add_extra_features, jac_extra_features, augment_features, augment_features_amp, augment_features_ph01, augment_features_ph2345, augment_features_res
+from .ML_routines import PCA_model, add_extra_features, jac_extra_features, augment_features
 from .NN_model import mlgw_NN
 #from .precession_helper import angle_manager, get_alpha0_beta0_gamma0, angle_params_keeper, CosinesLayer, augment_for_angles, to_polar, get_beta_trend_fast, get_fref_at_time_IMR
 from scipy.special import factorial as fact
@@ -1783,7 +1783,7 @@ class mode_generator_NN(mode_generator_base):
 
 		# --- Load NN models ---
 		for q_str in ['amp', 'ph']:
-			for nn_file in glob.glob(str(folder / f"{q_str}*[0-9]*h5")):
+			for nn_file in glob.glob(str(folder / f"{q_str}*[0-9]*keras")):
 
 				if 'residual' in nn_file:
 					comps = re.findall(r'_[0-9]+_', nn_file)
@@ -1867,47 +1867,25 @@ class mode_generator_NN(mode_generator_base):
 			red_amp,red_ph: :class:`~numpy:numpy.ndarray`
 				shape (N,K) - PCA reduced amplitude and phase
 		"""
-		comps_to_list = lambda comps_str: jnp.array([int(c) for c in comps_str])
-	
-		amp_pred = jnp.zeros((theta.shape[0], self.amp_PCA.get_dimensions()[1]))
-		ph_pred = jnp.zeros((theta.shape[0], self.ph_PCA.get_dimensions()[1]))
+		comps_to_list = lambda comps_str: [int(c) for c in comps_str]
+		#new way
+		amp_pred = np.zeros((theta.shape[0], self.amp_PCA.get_dimensions()[1]))
+		ph_pred = np.zeros((theta.shape[0], self.ph_PCA.get_dimensions()[1]))
 		
-		#for comps, model in self.amp_models.items():
-		#amp_pred[:,comps_to_list(comps)] = model(augment_features(theta, model.features)).numpy()
-
+		for comps, model in self.amp_models.items():
+			#amp_pred[:,comps_to_list(comps)] = model(augment_features(theta, model.features)).numpy()
+			input_ = tf.constant(augment_features(theta, model.features).astype(np.float32))
+			amp_pred[:,comps_to_list(comps)] = model(input_)[0].numpy()
 		
-		comps = list(self.amp_models.keys())[0]
-		model = self.amp_models[comps]['model']
-		params = self.amp_models[comps]['params']
-		features = self.amp_models[comps]['features']
-		input_ = augment_features_amp(theta)
-		amp_pred = amp_pred.at[:,comps_to_list(comps)].set(model(params, input_)[0])
-		
-		
-		
-		comps = list(self.ph_models.keys())[0]
-		model = self.ph_models[comps]['model']
-		params = self.ph_models[comps]['params']
-		features = self.ph_models[comps]['features']
-		input_ = augment_features_ph01(theta)
-		ph_pred = ph_pred.at[:,comps_to_list(comps)].set(model(params, input_)[0])
-		
-		
-		
-		comps = list(self.ph_models.keys())[1]
-		model = self.ph_models[comps]['model']
-		params = self.ph_models[comps]['params']
-		features = self.ph_models[comps]['features']
-		input_ = augment_features_ph2345(theta)
-		ph_pred = ph_pred.at[:,comps_to_list(comps)].set(model(params, input_)[0])
-		
-		
-		comps = list(self.ph_residual_models.keys())[0]
-		model = self.ph_residual_models[comps]['model']
-		params = self.ph_residual_models[comps]['params']
-		features = self.ph_residual_models[comps]['features']
-		input_ = augment_features_res(theta)
-		ph_pred = ph_pred.at[:,comps_to_list(comps)].add(model(params, input_)[0])
+		for comps, model in self.ph_models.items():
+			#ph_pred[:,comps_to_list(comps)] = model(augment_features(theta, model.features)).numpy()
+			input_ = tf.constant(augment_features(theta, model.features).astype(np.float32))
+			ph_pred[:,comps_to_list(comps)] = model(input_)[0].numpy()
+        
+		for comps, model in self.ph_residual_models.items():
+			#ph_pred[:,comps_to_list(comps)] += model(augment_features(theta, model.features)).numpy()*self.ph_res_coefficients[comps]
+			input_ = tf.constant(augment_features(theta, model.features).astype(np.float32))
+			ph_pred[:,comps_to_list(comps)] += model(input_)[0].numpy()*self.ph_res_coefficients[comps]
 
 		return amp_pred, ph_pred
 
