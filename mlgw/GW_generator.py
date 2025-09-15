@@ -35,7 +35,8 @@ from .EM_MoE import MoE_model #WARNING commented out
 from .ML_routines import PCA_model, add_extra_features, jac_extra_features, augment_features, augment_features_amp, augment_features_ph01, augment_features_ph2345, augment_features_res
 from .NN_model import mlgw_NN
 #from .precession_helper import angle_manager, get_alpha0_beta0_gamma0, angle_params_keeper, CosinesLayer, augment_for_angles, to_polar, get_beta_trend_fast, get_fref_at_time_IMR
-from scipy.special import factorial as fact
+from jax.scipy.special import factorial as fact
+
 from pathlib import Path
 import scipy
 import precession
@@ -421,45 +422,46 @@ class GW_generator:
 		
 		if isinstance(modes,tuple) and modes != (2,2):
 			modes = [modes]
-		theta = np.array(theta) #to ensure user theta is copied into new array
+		theta = jnp.array(theta) #to ensure user theta is copied into new array
 		if theta.ndim == 1:
 			to_reshape = True #whether return a one dimensional array
-			theta = theta[np.newaxis,:] #(1,D)
+			theta = jnp.expand_dims(theta, 0) #(1,D)
 		else:
 			to_reshape = False
 		
 		D= theta.shape[1] #number of features given
-		if D <3:
-			raise RuntimeError("Unable to generata WF. Too few parameters given!!")
+		if D < 3:
+			raise RuntimeError("Unable to generate WF. Too few parameters given!!")
 			return
 
 			#creating a standard theta vector for __get_WF
 		if D==3:
-			new_theta = np.zeros((theta.shape[0],7))
-			new_theta[:,4] = 1.
-			new_theta[:,[2,3]] = theta[:,[1,2]] #setting spins
-			new_theta[:,[0,1]] = [theta[:,0]*20./(1+theta[:,0]), 20./(1+theta[:,0])] #setting m1,m2 with M = 20
+			new_theta = jnp.zeros((theta.shape[0],7))
+			new_theta = new_theta.at[:, 4].set(1.)
+			new_theta = new_theta.at[:, [2, 3]].set(theta[:, [1, 2]]) #setting spins
+			new_theta = new_theta.at[:, [0, 1]].set(jnp.stack([theta[:, 0] * 20. / (1 + theta[:, 0]), 20. / (1 + theta[:, 0])], axis=1)) #setting m1,m2 with M = 20
 			theta = new_theta #(N,7)
 
 		if D>3 and D!=7:
-			new_theta = np.zeros((theta.shape[0],7))
-			new_theta[:,4] = 1.
+			new_theta = jnp.zeros((theta.shape[0],7))
+			new_theta = new_theta.at[:, 4].set(1.)
+
 			if D== 14:
-				if np.any(np.column_stack((theta[:,2:4], theta[:,5:7])) != 0):
-					warnings.warn("Given nonzero spin_x/spin_y components. Model currently supports only spin_z component. Other spin components are ignored")
-				indices = [0,1,4,7,8,9,10]
-				indices_new_theta = range(7)
+				#if np.any(np.column_stack((theta[:,2:4], theta[:,5:7])) != 0):
+					#warnings.warn("Given nonzero spin_x/spin_y components. Model currently supports only spin_z component. Other spin components are ignored")
+				indices = jnp.array([0,1,4,7,8,9,10])
+				indices_new_theta = jnp.arange(7)
 			else:
-				indices = [i for i in range(D)]
+				indices = jnp.arange(D)
 				indices_new_theta = indices
 
 
 				#building vector to keep standard layout for __get_WF
-			new_theta[:, indices_new_theta] = theta[:,indices]
+			new_theta = new_theta.at[:, indices_new_theta].set(theta[:,indices])
 			theta = new_theta #(N,7)
 
-		if np.any(np.logical_and(theta[:,[2,3]]>=1,theta[:,[2,3]]<=-1)):
-			raise ValueError("Wrong value for spins, please set a value in range [-1,1]")
+		#if np.any(np.logical_and(theta[:,[2,3]]>=1,theta[:,[2,3]]<=-1)):
+			#raise ValueError("Wrong value for spins, please set a value in range [-1,1]")
 
 			#generating waves and returning to user
 		h_plus, h_cross = self.__get_WF(theta, t_grid, modes) #(N,D)
@@ -1051,17 +1053,17 @@ class GW_generator:
 		m_tot_us = theta[:,0] + theta[:,1]	#total mass in solar masses for the user  (N,)
 		amp_prefactor = prefactor*m_tot_us/theta[:,4] # G/c^2 (M / d_L) 
 
-		h_plus = np.zeros((theta.shape[0],t_grid.shape[0]))
-		h_cross = np.zeros((theta.shape[0],t_grid.shape[0]))
+		h_plus = jnp.zeros((theta.shape[0],t_grid.shape[0]))
+		h_cross = jnp.zeros((theta.shape[0],t_grid.shape[0]))
 
 			#if only mode 22 is required, it is treated separately for speed up	
 		if modes == (2,2):# or modes == [(2,2)]:
 			amp_22, ph_22 = self.modes[self.mode_dict[(2,2)]].get_mode(theta[:,:4], t_grid, out_type = "ampph")
-			amp_22 =  np.sqrt(5/(4.*np.pi))*np.multiply(amp_22.T, amp_prefactor).T #G/c^2*(M_sun/Mpc) nu *(M/M_sun)/(d_L/Mpc)
+			amp_22 =  jnp.sqrt(5/(4.*jnp.pi))*jnp.multiply(amp_22.T, amp_prefactor).T #G/c^2*(M_sun/Mpc) nu *(M/M_sun)/(d_L/Mpc)
 				#setting spherical harmonics by hand
-			c_i = np.cos(theta[:,5]) #(N,)
-			h_p = np.multiply(np.multiply(amp_22.T,np.cos(ph_22.T+2.*theta[:,6])), 0.5*(1+np.square(c_i)) ).T
-			h_c = np.multiply(np.multiply(amp_22.T,np.sin(ph_22.T+2.*theta[:,6])), c_i ).T
+			c_i = jnp.cos(theta[:,5]) #(N,)
+			h_p = jnp.multiply(jnp.multiply(amp_22.T,jnp.cos(ph_22.T+2.*theta[:,6])), 0.5*(1+jnp.square(c_i)) ).T
+			h_c = jnp.multiply(jnp.multiply(amp_22.T,jnp.sin(ph_22.T+2.*theta[:,6])), c_i ).T
 			return h_p, h_c
 
 		if modes is None:
@@ -1075,7 +1077,7 @@ class GW_generator:
 				continue
 				
 			amp_lm, ph_lm = self.modes[mode_id].get_mode(theta[:,:4], t_grid, out_type = "ampph")
-			amp_lm =  np.multiply(amp_lm.T, amp_prefactor).T #G/c^2*(M_sun/Mpc) nu *(M/M_sun)/(d_L/Mpc)
+			amp_lm =  jnp.multiply(amp_lm.T, amp_prefactor).T #G/c^2*(M_sun/Mpc) nu *(M/M_sun)/(d_L/Mpc)
 				# setting spherical harmonics: amp, ph, D_L,iota, phi_0
 			h_lm_real, h_lm_imag = self.__set_spherical_harmonics(mode, amp_lm, ph_lm, theta[:,5], theta[:,6])
 			h_plus = h_plus + h_lm_real
@@ -1192,26 +1194,92 @@ class GW_generator:
 		
 		l,m = mode
 			#computing the iota dependence of the WF
-		c_i, s_i = np.cos(iota*0.5), np.sin(iota*0.5)
-		d_lm = self.__get_Wigner_d_function(l,-m,-2,c_i, s_i) #(N,)
-		d_lmm = self.__get_Wigner_d_function(l,m,-2,c_i, s_i) #(N,)
-		const = np.sqrt( (2.*l+1.)/(4.*np.pi) ) * (-1)**m
-		parity = np.power(-1,l) #are you sure of that? apparently yes...
+		#c_i, s_i = jnp.cos(iota*0.5), jnp.sin(iota*0.5)
+		d_lm = self.__get_Wigner_d_function(l,-m,-2,iota) #(N,)
+		d_lmm = self.__get_Wigner_d_function(l,m,-2,iota) #(N,)
+		const = jnp.sqrt( (2.*l+1.)/(4.*jnp.pi) ) * (-1)**m
+		parity = jnp.power(-1,l) #are you sure of that? apparently yes...
 
 			#FIXME: this can be done better interpolating after the spherical harmonic multiplication
-		h_lm_real = np.multiply(np.multiply(amp.T,np.cos(ph.T+m*phi_0)), const*(d_lm + parity * d_lmm) ).T #(N,D)
-		h_lm_imag = np.multiply(np.multiply(amp.T,np.sin(ph.T+m*phi_0)), const*(d_lm - parity * d_lmm) ).T #(N,D)
+		h_lm_real = jnp.multiply(jnp.multiply(amp.T,jnp.cos(ph.T+m*phi_0)), const*(d_lm + parity * d_lmm) ).T #(N,D)
+		h_lm_imag = jnp.multiply(jnp.multiply(amp.T,jnp.sin(ph.T+m*phi_0)), const*(d_lm - parity * d_lmm) ).T #(N,D)
 
 		return h_lm_real, h_lm_imag
 
 	def __generate_pow_exponents_for_Wigner_d_function(self, l, n, m):
-		ki = max(0, m-n)
-		kf = min(l+m, l-n)
+		l = int(l)
+		n = int(n)
+		m = int(m)
+		ki = jnp.maximum(0, m - n)
+		kf = jnp.minimum(l + m, l - n)
 
-		cos_i_powers = [2 * l + m - n - 2 * id_ for id_ in np.arange(ki, kf + 1)]
-		sin_i_powers = [2 * id_ + n - m for id_ in np.arange(ki, kf + 1)]
+		ids = jnp.arange(ki, kf + 1)
+		cos_i_powers = 2 * l + m - n - 2 * ids
+		sin_i_powers = 2 * ids + n - m
+
 		return cos_i_powers, sin_i_powers
 
+	def __get_Wigner_d_function(self,l,n,m,iota):
+		cos_h = jnp.cos(iota / 2.)
+		sin_h = jnp.sin(iota / 2.)
+		pref  = jnp.sqrt(
+		fact(l + n) * fact(l - n) *
+		fact(l + m) * fact(l - m)
+		)
+
+		s_min = jnp.maximum(0, m - n)
+		s_max = jnp.minimum(l + m, l - n)
+
+		# bound superiore sicuro: 2l (basta e avanza)
+		def body(s, acc):
+			in_range = (s >= s_min) & (s <= s_max)
+			term_sign = (-1) ** (n - m + s)
+			term = term_sign * cos_h ** (2 * l + m - n - 2 * s) * \
+					sin_h ** (n - m + 2 * s) / \
+					(fact(l + m - s) * fact(s) *
+					fact(n - m + s) * fact(l - n - s))
+			return acc + jax.lax.cond(in_range, lambda: jnp.squeeze(term), lambda: jnp.array(0.0))
+
+		total = jax.lax.fori_loop(0, 2 * l + 1, body, 0.0)
+		return pref * total
+
+	'''
+	def __get_Wigner_d_function(self, l, n, m, iota):
+		# l, n, m possono essere float (es. mezzi interi), ma devono rappresentare valori fisici validi
+		l = int(l)
+		n = int(n)
+		m = int(m)
+
+		cos_half = jnp.cos(iota*0.5)
+		sin_half = jnp.sin(iota*0.5)
+
+		# prefactor sqrt[(l + n)! (l - n)! (l + m)! (l - m)!]
+		prefactor = jnp.sqrt(
+			fact(l + n) * fact(l - n) * fact(l + m) * fact(l - m)
+		)
+
+		s_min = jnp.maximum(0, m - n)
+		s_max = jnp.minimum(l + m, l - n)
+
+		def term(s):
+			num_sign = (-1) ** (n - m + s)
+			num_cos = cos_half ** (2 * l + m - n - 2 * s)
+			num_sin = sin_half ** (n - m + 2 * s)
+			denom = (
+				factorial(l + m - s) *
+				factorial(s) *
+				factorial(n - m + s) *
+				factorial(l - n - s)
+			)
+			return num_sign * num_cos * num_sin / denom
+
+		s_vals = jnp.arange(s_min, s_max + 1)
+		terms = jnp.vectorize(term)(s_vals)
+		result = prefactor * jnp.sum(terms)
+
+		return result
+
+	
 	#@do_profile()
 	def __get_Wigner_d_function(self, l, n, m, cos_i, sin_i, cos_i_powers = None, sin_i_powers=None):
 		"""
@@ -1239,38 +1307,45 @@ class GW_generator:
 		#sin_i = np.sin(iota*0.5) #(N,)
     
 			#starting computation (sloooow??)
-		ki = max(0, m-n)
-		kf = min(l+m, l-n)
+		ki = jnp.maximum(0, m-n)
+		kf = jnp.minimum(l+m, l-n)
 
 		pow_minus_one_n_m = (-1) ** (n - m)
 			#TODO: precompute the cos_i_powers and sin_i_powers in the __get_Wigner_D_matrix function and you will gain a lot of time!!
 		cos_i_powers_exponents, sin_i_powers_exponents = self.__generate_pow_exponents_for_Wigner_d_function(l,n,m)
 		
 		if not cos_i_powers:
-			cos_i_powers = {id_: np.power(cos_i, id_) for id_ in cos_i_powers_exponents}
+			cos_i_ = jnp.atleast_1d(cos_i)[:, None]  
+			exps_ = jnp.atleast_1d(cos_i_powers_exponents)[None, :]  
+			cos_i_powers = jnp.power(cos_i_, exps_) 
 		if not sin_i_powers:
-			sin_i_powers = {id_: np.power(sin_i, id_) for id_ in sin_i_powers_exponents}
+			sin_i_ = jnp.atleast_1d(sin_i)[:, None]
+			exps_ = jnp.atleast_1d(sin_i_powers_exponents)[None, :]
+			sin_i_powers = jnp.power(sin_i_, exps_)
 
-		d_lnm = np.zeros(cos_i.shape) #(N,) 
+		d_lnm = jnp.zeros(cos_i.shape) #(N,) 
 
 		for k in range(ki, kf + 1):
 			norm = fact(k) * fact(l + m - k) * fact(l - n - k) * fact(n - m + k)  # normalization constant
-			term = (pow_minus_one_n_m * (-1) ** k * cos_i_powers[2*l+m-n-2*k] * sin_i_powers[2*k+n-m]) / norm
+			term = (pow_minus_one_n_m * (-1) ** k * cos_i_powers[jnp.where(cos_i_powers_exponents == 2*l+m-n-2*k),:][0][0] * sin_i_powers[jnp.where(sin_i_powers_exponents == 2*k+n-m),:][0][0]) / norm
 			d_lnm += term
 			
 			#Unoptimized computation
 		if False:
-			d_lnm_ = np.zeros(cos_i.shape) #(N,)  	
+			d_lnm_ = jnp.zeros(cos_i.shape) #(N,)  	
 			for k in range(ki,kf+1):
 				norm = fact(k) * fact(l+m-k) * fact(l-n-k) * fact(n-m+k) #normalization constant
-				d_lnm_ = d_lnm_ +  (pow(-1.,k+n-m) * np.power(cos_i,2*l+m-n-2*k) * np.power(sin_i,2*k+n-m) ) / norm
-			assert np.allclose(d_lnm_,d_lnm)
+				d_lnm_ = d_lnm_ +  (jnp.power(-1.,k+n-m) * jnp.power(cos_i,2*l+m-n-2*k) * jnp.power(sin_i,2*k+n-m) ) / norm
+			assert jnp.allclose(d_lnm_,d_lnm)
 
 
-		const = np.sqrt(fact(l+m) * fact(l-m) * fact(l+n) * fact(l-n))
+		const = jnp.sqrt(fact(l+m) * fact(l-m) * fact(l+n) * fact(l-n))
 		
 		return const*d_lnm
-	
+		'''
+
+
+
 	#@do_profile()
 	def __get_Wigner_D_matrix(self, l, m_prime, m, alpha, c_beta, s_beta, gamma):
 		"""
@@ -1543,16 +1618,17 @@ class mode_generator_base():
 		if out_type not in ["realimag", "ampph"]:
 			raise ValueError("Wrong output type chosen. Expected \"realimag\", \"ampph\", given \""+out_type+"\"")
 
-		theta = np.array(theta) #to ensure that theta is copied into new array
-		if not isinstance(t_grid, np.ndarray): #making sure that t_grid is np.array
-			t_grid = np.array(t_grid)
+		theta = jnp.array(theta) #to ensure that theta is copied into new array
+		if not isinstance(t_grid, jnp.ndarray): #making sure that t_grid is jnp.array
+			t_grid = jnp.array(t_grid)
 
 		if theta.ndim == 1:
 			to_reshape = True #whether return a one dimensional array
-			theta = theta[np.newaxis,:] #(1,D)
+			theta = jnp.expand_dims(theta, axis=0) #(1,D)
 		else:
 			to_reshape = False
 		
+
 		D= theta.shape[1] #number of features given
 		if D not in [3,4]:
 			raise RuntimeError("Unable to generata mode. Wrong number of BBH parameters!!")
@@ -1589,43 +1665,52 @@ class mode_generator_base():
 			hlm_real, hlm_im: :class:`~numpy:numpy.ndarray`
 				shape (N,D') - desidered h_22 components (if it applies)
 		"""
+		theta = jnp.array(theta)
 		D= theta.shape[1] #number of features given
 		assert D in [3,4] #check that the number of dimension is fine
 
 			#setting theta_std & m_tot_us
 		if D == 3:
 			theta_std = theta
-			m_tot_us = 20. * np.ones((theta.shape[0],)) 
+			m_tot_us = 20. * jnp.ones((theta.shape[0],)) 
 		else:
-			q = np.divide(theta[:,0],theta[:,1]) #theta[:,0]/theta[:,1] #mass ratio (general) (N,)
+			q = jnp.divide(theta[:,0],theta[:,1]) #theta[:,0]/theta[:,1] #mass ratio (general) (N,)
 			m_tot_us = theta[:,0] + theta[:,1]	#total mass in solar masses for the user
-			theta_std = np.column_stack((q,theta[:,2],theta[:,3])) #(N,3)
+			theta_std = jnp.column_stack((q,theta[:,2],theta[:,3])) #(N,3)
 
-			to_switch = np.where(theta_std[:,0] < 1.) #holds the indices of the events to swap
 
-				#switching masses (where relevant)
-			theta_std[to_switch,0] = np.power(theta_std[to_switch,0], -1)
-			theta_std[to_switch,1], theta_std[to_switch,2] = theta_std[to_switch,2], theta_std[to_switch,1]
+			# Invert q where necessary
+			q_new = jnp.where(theta_std[:, 0] < 1., 1. / theta_std[:, 0], theta_std[:, 0])
+
+			# Swap columns 1 and 2 where q < 1
+			s1 = jnp.where(theta_std[:, 0] < 1., theta_std[:, 2], theta_std[:, 1])
+			s2 = jnp.where(theta_std[:, 0] < 1., theta_std[:, 1], theta_std[:, 2])
+
+			# Reconstruct theta_std with convention m1 > m2
+			theta_std = jnp.column_stack((q_new, s1, s2))
 
 		amp, ph =  self.get_raw_mode(theta_std) #raw WF (N, N_grid)
 
-			#doing interpolations
-			############
-		new_amp = np.zeros((amp.shape[0], t_grid.shape[0]))
-		new_ph = np.zeros((amp.shape[0], t_grid.shape[0]))
+		#doing interpolations
+		############
+		new_amp = jnp.zeros((amp.shape[0], t_grid.shape[0]))
+		new_ph = jnp.zeros((amp.shape[0], t_grid.shape[0]))
 
-		for i in range(amp.shape[0]):
-				#computing the true red grid
-			interp_grid = np.divide(t_grid, m_tot_us[i])
-			#FIXME: here you can already apply spherical harmonics (calling _set_spherical_harmonics) for speed up
+		
+		#FIXME: here you can already apply spherical harmonics (calling _set_spherical_harmonics) for speed up
 
-				#putting the wave on the user grid
-			new_amp[i,:] = np.interp(interp_grid, self.times, amp[i,:], left = 0, right = 0) #set to zero outside the domain
-			new_ph[i,:]  = np.interp(interp_grid, self.times, ph[i,:])
+		#putting the wave on the user grid
+		def interp_one_event(amp_i, ph_i, m_i):
+			grid = jnp.divide(t_grid, m_i)
+			amp_interp = jnp.interp(grid, self.times, amp_i, left=0., right=0.)
+			ph_interp = jnp.interp(grid, self.times, ph_i)
+			return amp_interp, ph_interp
+
+		new_amp, new_ph = jax.vmap(interp_one_event)(amp, ph, m_tot_us)
 
 				#warning if the model extrapolates outiside the grid
-			if (interp_grid[0] < self.times[0]):
-				warnings.warn("Warning: time grid given is too long for the fitted model. Set 0 amplitude outside the fitting domain.")
+			# if (interp_grid[0] < self.times[0]):
+				# warnings.warn("Warning: time grid given is too long for the fitted model. Set 0 amplitude outside the fitting domain.")
 
 			#amplitude and phase of the mode (maximum of amp at t=0)
 		if isinstance(self, mode_generator_NN):
@@ -1640,28 +1725,9 @@ class mode_generator_base():
 		if out_type == 'ampph':
 			return amp, ph
 		else:
-			hlm_real = np.multiply(amp, np.cos(ph))
-			hlm_imag = np.multiply(amp, np.sin(ph))
+			hlm_real = jnp.multiply(amp, jnp.cos(ph))
+			hlm_imag = jnp.multiply(amp, jnp.sin(ph))
 			return hlm_real, hlm_imag
-
-	def PCA_models(self, model_type):
-		"""
-		Returns the PCA model.
-		
-		Input:
-			model_type:	str
-				"amp" or "ph" to state which PCA model shall be returned
-
-		Output:
-			PCA_model: :class:`PCA_model`
-				The required PCA model
-			
-		"""
-		if model_type == "amp":
-			return self.amp_PCA
-		if model_type == "ph":
-			return self.ph_PCA
-		return None
 
 	def get_grads(self, theta, t_grid, out_type ="realimag"):
 		"""
@@ -1784,7 +1850,7 @@ class mode_generator_NN(mode_generator_base):
 		# --- Load NN models ---
 		for q_str in ['amp', 'ph']:
 			for nn_file in glob.glob(str(folder / f"{q_str}*[0-9]*h5")):
-
+				print(nn_file)
 				if 'residual' in nn_file:
 					comps = re.findall(r'_[0-9]+_', nn_file)
 					assert len(comps) == 1, f"Invalid residual NN filename: {nn_file}"
@@ -1803,6 +1869,7 @@ class mode_generator_NN(mode_generator_base):
 					dict_to_fill = self.amp_models if q_str == 'amp' else self.ph_models
 
                 # --- Load and convert model ---
+				
 				new_model = mlgw_NN.load_from_file(nn_file)
 				tf_function = tf.function(new_model, input_signature=(tf.TensorSpec(shape=new_model.inputs[0].shape, dtype=tf.float32),))
 				jax_fn, params = tf2jax.convert(tf_function)
@@ -1821,7 +1888,7 @@ class mode_generator_NN(mode_generator_base):
                     "features": new_model.features,
                     "params": params
                 }
-
+				
 		if not (self.amp_models and self.ph_models):
 			raise RuntimeError("Please supply both amplitude and phase models!")
 		
@@ -1841,11 +1908,19 @@ class mode_generator_NN(mode_generator_base):
 			amp,ph: :class:`~numpy:numpy.ndarray`
 				shape (N,D) - desidered amplitude and phase, evaluated on the internal default time grid
 		"""
-		theta = np.atleast_2d(np.asarray(theta))
+		theta = jnp.atleast_2d(jnp.asarray(theta))
+		
+		
+		
+		
 		if theta.shape[0]> self.batch_size:
-			coeff_list = [self.get_red_coefficients(theta[i:i+self.batch_size]) for i in range(0, len(theta), self.batch_size)]
-			rec_PCA_amp = np.concatenate([c[0] for c in coeff_list], axis = 0)
-			rec_PCA_ph = np.concatenate([c[1] for c in coeff_list], axis = 0)
+			coeff_list = jnp.array([self.get_red_coefficients(theta[i:i+self.batch_size]) for i in range(0, len(theta), self.batch_size)])
+			rec_PCA_amp = jnp.concatenate([c[0] for c in coeff_list], axis = 0)
+			rec_PCA_ph = jnp.concatenate([c[1] for c in coeff_list], axis = 0)
+			
+		
+		
+		######## MANCA LA PARTE IN CUI VENGONO BATCHATI GLI INPUT, DA RENDERE COMPATIBILE CON JAX ################
 		else:
 			rec_PCA_amp, rec_PCA_ph = self.get_red_coefficients(theta) #(N,K)
 
@@ -1869,6 +1944,8 @@ class mode_generator_NN(mode_generator_base):
 		"""
 		comps_to_list = lambda comps_str: jnp.array([int(c) for c in comps_str])
 	
+
+		
 		amp_pred = jnp.zeros((theta.shape[0], self.amp_PCA.get_dimensions()[1]))
 		ph_pred = jnp.zeros((theta.shape[0], self.ph_PCA.get_dimensions()[1]))
 		
@@ -1876,39 +1953,40 @@ class mode_generator_NN(mode_generator_base):
 		#amp_pred[:,comps_to_list(comps)] = model(augment_features(theta, model.features)).numpy()
 
 		
-		comps = list(self.amp_models.keys())[0]
+		comps = '0123' #list(self.amp_models.keys())[0]
 		model = self.amp_models[comps]['model']
 		params = self.amp_models[comps]['params']
 		features = self.amp_models[comps]['features']
 		input_ = augment_features_amp(theta)
-		amp_pred = amp_pred.at[:,comps_to_list(comps)].set(model(params, input_)[0])
+		input_ = jnp.expand_dims(input_, 0)
+		amp_pred = amp_pred.at[:,comps_to_list(comps)].set(model(params, input_)[0][0])
 		
-		
-		
-		comps = list(self.ph_models.keys())[0]
+
+		comps = '01' #list(self.ph_models.keys())[1]
 		model = self.ph_models[comps]['model']
 		params = self.ph_models[comps]['params']
 		features = self.ph_models[comps]['features']
 		input_ = augment_features_ph01(theta)
-		ph_pred = ph_pred.at[:,comps_to_list(comps)].set(model(params, input_)[0])
-		
-		
-		
-		comps = list(self.ph_models.keys())[1]
+		input_ = jnp.expand_dims(input_, 0)
+		ph_pred = ph_pred.at[:,comps_to_list(comps)].set(model(params, input_)[0][0])
+
+		comps = '2345' #list(self.ph_models.keys())[0]
 		model = self.ph_models[comps]['model']
 		params = self.ph_models[comps]['params']
 		features = self.ph_models[comps]['features']
 		input_ = augment_features_ph2345(theta)
-		ph_pred = ph_pred.at[:,comps_to_list(comps)].set(model(params, input_)[0])
+		input_ = jnp.expand_dims(input_, 0)
+		ph_pred = ph_pred.at[:,comps_to_list(comps)].set(model(params, input_)[0][0])
+
 		
-		
-		comps = list(self.ph_residual_models.keys())[0]
+		comps = '01' #list(self.ph_residual_models.keys())[0]
 		model = self.ph_residual_models[comps]['model']
 		params = self.ph_residual_models[comps]['params']
 		features = self.ph_residual_models[comps]['features']
 		input_ = augment_features_res(theta)
-		ph_pred = ph_pred.at[:,comps_to_list(comps)].add(model(params, input_)[0])
-
+		input_ = jnp.expand_dims(input_, 0)
+		ph_pred = ph_pred.at[:,comps_to_list(comps)].add(model(params, input_)[0][0])
+		
 		return amp_pred, ph_pred
 
 class mode_generator_MoE(mode_generator_base):

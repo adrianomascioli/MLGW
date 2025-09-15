@@ -15,6 +15,7 @@ import scipy.stats, scipy.linalg
 import numpy as np
 import warnings
 from itertools import combinations_with_replacement
+import jax.numpy as jnp
 
 ################# PCA class
 class PCA_model:
@@ -100,8 +101,8 @@ PCA_model
 
 	def reconstruct_data(self, red_data, K = None):
 		"""
-	reconstruct_data
-	================
+		reconstruct_data
+		================
 		Gives the best estimate of high dimensional data given the low dimensional PCA approximation.
 		Data are rescaled back to the original training measure inverting the preprocessing procedure.
 		Input:
@@ -114,12 +115,12 @@ PCA_model
 			K = self.PCA_params[0].shape[1]
 
 		if K < self.PCA_params[0].shape[1]:
-			red_data = np.concatenate([red_data[:,:K], np.zeros((red_data.shape[0], self.PCA_params[0].shape[1]-K))], axis = 1) 
+			red_data = jnp.concatenate([red_data[:,:K], jnp.zeros((red_data.shape[0], self.PCA_params[0].shape[1]-K))], axis = 1) 
 		if red_data.shape[1]<self.PCA_params[0].shape[1]:
-			red_data = np.concatenate([red_data[:,:K], np.zeros((red_data.shape[0], self.PCA_params[0].shape[1]-red_data.shape[1]))], axis = 1) 
+			red_data = jnp.concatenate([red_data[:,:K], jnp.zeros((red_data.shape[0], self.PCA_params[0].shape[1]-red_data.shape[1]))], axis = 1) 
 		
-		red_data = np.multiply(red_data, self.PCA_params[2])
-		data = np.matmul(red_data, self.PCA_params[0].T)
+		red_data = jnp.multiply(red_data, self.PCA_params[2])
+		data = jnp.matmul(red_data, self.PCA_params[0].T)
 		data = data+self.PCA_params[1]
 		return data.real
 
@@ -607,42 +608,48 @@ def augment_features_ph01(theta):
     
     
 def augment_features_ph2345(theta):
-    """
-    Augmentation delle features con tutti i monomi fino all'ordine 1
-    di chieff, mc, logq, eta. Compatibile con JAX e JIT.
-    
-    Input:
-        theta: (..., 3) array con colonne (q, s1, s2)
-    Output:
-        (..., 3 + 4) array:
-    """
-    q = theta[:, 0]
-    s1 = theta[:, 1]
-    s2 = theta[:, 2]
+	"""
+	Augmentation delle features con tutti i monomi fino all'ordine 1
+	di chieff, mc, logq, eta. Compatibile con JAX e JIT.
 
-    chieff = (q * s1 + s2) / (1 + q)
-    eta = q / (1 + q)**2
-    mc = eta ** (3 / 5)
-    logq = jnp.log(q)
+	Input:
+		theta: (..., 3) array con colonne (q, s1, s2)
+	Output:
+		(..., 3 + 4) array:
+	"""
+
+	'''
+	q = theta[:, 0]
+	s1 = theta[:, 1]
+	s2 = theta[:, 2]
+
+	chieff = (q * s1 + s2) / (1 + q)
+	eta = q / (1 + q)**2
+	mc = eta ** (3 / 5)
+	logq = jnp.log(q)
 
 
 
 
-    # Concatenazione
-    feats = jnp.stack([chieff,eta,logq,mc], axis=-1)
-    return jnp.concatenate([theta, feats], axis=-1)
+	# Concatenazione
+	feats = jnp.stack([chieff,eta,logq,mc], axis=-1)
+
+	return jnp.concatenate([theta, feats], axis=-1)
+
+	'''
+	return theta 
     
     
     
     
 def augment_features_res(theta):
     """
-    Augmentation di theta con tutti i monomi fino all'ordine 3
+    Augmentation di theta con tutti i monomi fino all'ordine 2
     delle variabili: chieff, eta, logq, mc (in ordine alfabetico)
     Input:
         theta: (..., 3) con q, s1, s2
     Output:
-        (..., 3 + 34) array
+        (..., 3 + 14) array
     """
     q = theta[:, 0]
     s1 = theta[:, 1]
@@ -657,7 +664,7 @@ def augment_features_res(theta):
     base_feats = jnp.stack([chieff, eta, logq, mc], axis=-1)
 
     n_samples = theta.shape[0]
-    feats = jnp.zeros((n_samples, 34))
+    feats = jnp.zeros((n_samples, 14))
     idx = 0
 
     # Primo ordine
