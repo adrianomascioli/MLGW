@@ -39,7 +39,7 @@ from jax.scipy.special import factorial as fact
 
 from pathlib import Path
 import scipy
-import precession
+#import precession
 
 
 import matplotlib.pyplot as plt #DEBUG
