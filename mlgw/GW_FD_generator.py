@@ -87,7 +87,6 @@ class GW_FD_generator:
     self.sampling_frequency=sampling_frequency
     self.modes=modes
     self.final_time_mlgw=final_time
-    self.time_array_mlgw= None
     self._create_time_array_for_mlgw()
     self.gwgen=GW_generator()
     self.alpha_left=alpha_left
@@ -124,21 +123,20 @@ class GW_FD_generator:
     - alpha_left: fraction of window tapered at the start
     - alpha_right: fraction of window tapered at the end
     """
+    
     x = jnp.linspace(0, 1, N)
-    w = jnp.ones(N)
+    w = jnp.ones_like(x)
     alpha_left=self.alpha_left
     alpha_right=self.alpha_right
-    # Left taper
-    if alpha_left > 0:
-        mask_left = x < alpha_left/2
-        w.at[mask_left].set(0.5 * (1 + jnp.cos(2*jnp.pi*(x[mask_left]/alpha_left - 0.5))) )
 
-    # Right taper
-    if alpha_right > 0:
-        mask_right = x > (1 - alpha_right/2)
-        w.at[mask_right].set(0.5 * (1 + jnp.cos(2*jnp.pi*((x[mask_right]-1)/alpha_right + 0.5))) )
+    left_part = 0.5 * (1 + jnp.cos(2 * jnp.pi * (x / alpha_left - 0.5)))
+    right_part = 0.5 * (1 + jnp.cos(2 * jnp.pi * ((x - 1) / alpha_right + 0.5)))
+
+    w = jnp.where(x < alpha_left/2, left_part, w)
+    w = jnp.where(x > 1 - alpha_right/2, right_part, w)
 
     return w
+
 
   def tukey_waveform_mlgw_jax_TD_dur_samp(self, hp,hc):
     lenght=len(hp)
