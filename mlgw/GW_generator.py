@@ -1798,7 +1798,7 @@ class mode_generator_NN(mode_generator_base):
 		
 			#Loading neural networks
 		for q_str in ['amp', 'ph']:
-			for nn_file in glob.glob(str(folder)+'/{}*[0-9]*keras'.format(q_str)):
+			for nn_file in glob.glob(str(folder)+'/{}*[0-9]*h5'.format(q_str)):
 
 					#Loading residuals
 				if nn_file.find('residual')>-1:
@@ -1823,8 +1823,19 @@ class mode_generator_NN(mode_generator_base):
 
 			
 				new_model = mlgw_NN.load_from_file(nn_file)
+				if "amp" in nn_file:
+					new_model.features = ['1-mc_chieff']
+				elif "ph_weights_01" in nn_file and "residual" not in nn_file:
+					new_model.features = ['3-mc_eta_logq_chieff']
+				elif "ph_weights_2345" in nn_file:
+					new_model.features = ['1-mc_chieff']
+				else:
+					new_model.features = ['2-mc_eta_logq_chieff']
 				
-					#Distilling the model for fast inference
+
+				
+				#Distilling the model for fast inference
+
 				tf_function = tf.function(new_model,
 						input_signature=(tf.TensorSpec(shape=new_model.inputs[0].shape, dtype=tf.float32),))
 				tf_function = convert_variables_to_constants_v2(tf_function.get_concrete_function())
@@ -1888,6 +1899,7 @@ class mode_generator_NN(mode_generator_base):
 		
 		for comps, model in self.amp_models.items():
 			#amp_pred[:,comps_to_list(comps)] = model(augment_features(theta, model.features)).numpy()
+
 			input_ = tf.constant(augment_features(theta, model.features).astype(np.float32))
 			amp_pred[:,comps_to_list(comps)] = model(input_)[0].numpy()
 		
@@ -1898,6 +1910,7 @@ class mode_generator_NN(mode_generator_base):
         
 		for comps, model in self.ph_residual_models.items():
 			#ph_pred[:,comps_to_list(comps)] += model(augment_features(theta, model.features)).numpy()*self.ph_res_coefficients[comps]
+
 			input_ = tf.constant(augment_features(theta, model.features).astype(np.float32))
 			ph_pred[:,comps_to_list(comps)] += model(input_)[0].numpy()*self.ph_res_coefficients[comps]
 
