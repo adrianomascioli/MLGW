@@ -32,7 +32,9 @@ from tensorflow.python.framework.convert_to_constants import convert_variables_t
 import inspect
 sys.path.insert(1, os.path.dirname(__file__)) 	#adding to path folder where mlgw package is installed (ugly?)
 from .EM_MoE import MoE_model #WARNING commented out 
-from .ML_routines import PCA_model, add_extra_features, jac_extra_features, augment_features, augment_features_amp, augment_features_ph01, augment_features_ph2345, augment_features_res
+from .ML_routines import PCA_model, add_extra_features, jac_extra_features, augment_features, \
+                                    augment_features_amp, augment_features_ph01, augment_features_ph2345, \
+									augment_features_res, build_feature_spec, make_augmenter
 from .NN_model import mlgw_NN
 #from .precession_helper import angle_manager, get_alpha0_beta0_gamma0, angle_params_keeper, CosinesLayer, augment_for_angles, to_polar, get_beta_trend_fast, get_fref_at_time_IMR
 from jax.scipy.special import factorial as fact
@@ -1871,6 +1873,8 @@ class mode_generator_NN(mode_generator_base):
                 # --- Load and convert model ---
 				
 				new_model = mlgw_NN.load_from_file(nn_file)
+				feature_spec = build_feature_spec(new_model.features)
+				augmenter = make_augmenter(feature_spec)
 				tf_function = tf.function(new_model, input_signature=(tf.TensorSpec(shape=new_model.inputs[0].shape, dtype=tf.float32),))
 				jax_fn, params = tf2jax.convert(tf_function)
 		
@@ -1885,7 +1889,7 @@ class mode_generator_NN(mode_generator_base):
 		
 				dict_to_fill[comps] = {
                     "model": jax_fn,
-                    "features": new_model.features,
+                    "augment_features": augmenter,
                     "params": params
                 }
 				
@@ -1949,43 +1953,24 @@ class mode_generator_NN(mode_generator_base):
 		amp_pred = jnp.zeros((theta.shape[0], self.amp_PCA.get_dimensions()[1]))
 		ph_pred = jnp.zeros((theta.shape[0], self.ph_PCA.get_dimensions()[1]))
 		
-		#for comps, model in self.amp_models.items():
-		#amp_pred[:,comps_to_list(comps)] = model(augment_features(theta, model.features)).numpy()
 
+
+		for comps, model in self.amp_models.items():
+
+			input_ = jnp.expand_dims(model["augment_features"](theta), 0)
+			amp_pred = amp_pred.at[:,comps_to_list(comps)].set(model["model"](model["params"], input_)[0][0])
 		
-		comps = '0123' #list(self.amp_models.keys())[0]
-		model = self.amp_models[comps]['model']
-		params = self.amp_models[comps]['params']
-		features = self.amp_models[comps]['features']
-		input_ = augment_features_amp(theta)
-		input_ = jnp.expand_dims(input_, 0)
-		amp_pred = amp_pred.at[:,comps_to_list(comps)].set(model(params, input_)[0][0])
+		for comps, model in self.ph_models.items():
+
+			input_ = jnp.expand_dims(model["augment_features"](theta), 0)
+			amp_pred = amp_pred.at[:,comps_to_list(comps)].set(model["model"](model["params"], input_)[0][0])
+        
+		for comps, model in self.ph_residual_models.items():
+
+			input_ = jnp.expand_dims(model["augment_features"](theta), 0)
+			amp_pred = amp_pred.at[:,comps_to_list(comps)].set(model["model"](model["params"], input_)[0][0])
 		
 
-		comps = '01' #list(self.ph_models.keys())[1]
-		model = self.ph_models[comps]['model']
-		params = self.ph_models[comps]['params']
-		features = self.ph_models[comps]['features']
-		input_ = augment_features_ph01(theta)
-		input_ = jnp.expand_dims(input_, 0)
-		ph_pred = ph_pred.at[:,comps_to_list(comps)].set(model(params, input_)[0][0])
-
-		comps = '2345' #list(self.ph_models.keys())[0]
-		model = self.ph_models[comps]['model']
-		params = self.ph_models[comps]['params']
-		features = self.ph_models[comps]['features']
-		input_ = augment_features_ph2345(theta)
-		input_ = jnp.expand_dims(input_, 0)
-		ph_pred = ph_pred.at[:,comps_to_list(comps)].set(model(params, input_)[0][0])
-
-		
-		comps = '01' #list(self.ph_residual_models.keys())[0]
-		model = self.ph_residual_models[comps]['model']
-		params = self.ph_residual_models[comps]['params']
-		features = self.ph_residual_models[comps]['features']
-		input_ = augment_features_res(theta)
-		input_ = jnp.expand_dims(input_, 0)
-		ph_pred = ph_pred.at[:,comps_to_list(comps)].add( (model(params, input_)[0][0])*self.ph_res_coefficients[comps] )
 
 		
 		return amp_pred, ph_pred

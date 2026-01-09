@@ -349,7 +349,12 @@ class mlgw_NN(keras.Sequential):
 		with tf.keras.utils.CustomObjectScope({'mlgw_NN': mlgw_NN}):
 			model = keras.models.load_model(nn_file, compile=False)
 		if name is None: name = model.name
-		return cls(model.layers, name, features = None)
+		
+		if nn_file.endswith(".h5") or nn_file.endswith(".hdf5"):
+			return cls(model.layers, name, features = model.features)
+		else:
+			return cls(model.layers, name, features = None) 
+
 	
 class NN_HyperModel(HyperModel):
 	def __init__(self,  output_nodes, hyperparameter_ranges, loss_weights):

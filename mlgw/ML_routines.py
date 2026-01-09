@@ -15,6 +15,7 @@ import scipy.stats, scipy.linalg
 import numpy as np
 import warnings
 from itertools import combinations_with_replacement
+import jax
 import jax.numpy as jnp
 
 ################# PCA class
@@ -485,7 +486,7 @@ def augment_features(theta, features):
 		else:
 			raise ValueError("Each input feature must be a string")
 		
-		if not (features_ and order>1): continue
+		if not (features_ and order>=1): continue
 
 		features_.sort()
 		feat_list = []
@@ -522,167 +523,124 @@ def augment_features(theta, features):
 	
 	return np.concatenate([theta, *feats_to_add], axis = 1)
 
+############## THE FUNCTIONS BELOW ARE THE USED TO CREATE THE JAX VERSION OF THE FEATURE AUGMENTATIONS ################
 	
 
-def augment_features_amp(theta):
-	"""
-	Augmentation delle features con tutti i monomi fino all'ordine 2
-	di chieff e mc. Compatibile con JAX e JIT.
-
-	Input:
-		theta: (..., 3) array con colonne (q, s1, s2)
-	Output:
-		(..., 3 + 5) array: originali + [chieff, mc, chieff², chieff*mc, mc²]
-	"""
-
-	'''
-	## SEMBRA CI SIA UN PROBLEMA NELLA DEFINIZIONE DI AUGMENT_FEATURES DEL mlgw ORIGINALE: CON ORDINE=1 NON FA ALCUNA AUGMENTATION
-	q = theta[:, 0]
-	s1 = theta[:, 1]
-	s2 = theta[:, 2]
-
-	chieff = (q * s1 + s2) / (1 + q)
-	eta = q / (1 + q)**2
-	mc = eta ** (3 / 5)
-
-	# Primo ordine
-	f1 = chieff
-	f2 = mc
-
-
-
-	# Concatenazione
-	feats = jnp.stack([f1, f2], axis=-1)
-	return jnp.concatenate([theta, feats], axis=-1)
-
-	'''
-
-	return theta
-    
-def augment_features_ph01(theta):
+def build_feature_spec(features):
+	
     """
-    Augmentation di theta con tutti i monomi fino all'ordine 3
-    delle variabili: chieff, eta, logq, mc (in ordine alfabetico)
-    Input:
-        theta: (..., 3) con q, s1, s2
-    Output:
-        (..., 3 + 34) array
+    Parse feature strings like '2-eta_chieff_s1' and return
+    a static feature spec for JAX.
     """
-    q = theta[:, 0]
+	
+    FEATURES = {
+	"q": 0,
+	"s1": 1,
+	"s2": 2,
+	"eta": 3,
+	"chieff": 4,
+	"logq": 5,
+	"mc": 6,
+	}
+
+
+    if not isinstance(features, list):
+        features = [features]
+
+    base_feats = set()
+    poly_feats = set()
+
+    for feat_str in features:
+
+        if not feat_str:
+            continue
+
+        if not isinstance(feat_str, str):
+            raise ValueError("Each feature must be a string")
+
+        order_str, feats_str = feat_str.split("-")
+        order = int(order_str)
+
+        feats = feats_str.split("_")
+        feats.sort()
+
+        # map to indices
+        try:
+            feat_idx = [FEATURES[f] for f in feats]
+        except KeyError as e:
+            raise ValueError(f"Unknown feature '{e.args[0]}'")
+
+
+		##### THIS WILL BE MODIFIED WHEN NEW TRAININGS WILL BE DONE. THE MODEL BASED ON SEOBNRv4 IS WRONG AND DOES NOT 
+		##### CONSIDER THE AUGMENTATION WHEN ORDER IS = 1
+
+        # base features (first order)
+        for i in feat_idx:
+            if (i not in (FEATURES["q"], FEATURES["s1"], FEATURES["s2"])) and (order > 1):
+                base_feats.add(i)
+
+
+
+        # higher-order terms
+        if order > 1:
+            for k in range(2, order + 1):
+                for combo in combinations_with_replacement(feat_idx, k):
+                    poly_feats.add(combo)
+
+    spec = {
+        "base": tuple(sorted(base_feats)),
+        "poly": tuple(sorted(poly_feats)),
+    }
+
+    return spec
+
+
+
+def compute_all_features(theta):
+
+
+    q  = theta[:, 0]
     s1 = theta[:, 1]
     s2 = theta[:, 2]
 
-    eta = q / (1 + q) ** 2
-    chieff = (q * s1 + s2) / (1 + q)
-    mc = eta ** (3 / 5)
-    logq = jnp.log(q)
+    eta    = q / (1.0 + q)**2
+    chieff = (q * s1 + s2) / (1.0 + q)
+    logq   = jnp.log(q)
+    mc     = eta**(3.0 / 5.0)
 
-    # Ordinamento alfabetico: chieff, eta, logq, mc
-    base_feats = jnp.stack([chieff, eta, logq, mc], axis=-1)
-
-    n_samples = theta.shape[0]
-    feats = jnp.zeros((n_samples, 34))
-    idx = 0
-
-    # Primo ordine
-    for i in range(4):
-        feats = feats.at[:, idx].set(base_feats[:, i])
-        idx += 1
-
-    # Secondo ordine
-    for i in range(4):
-        for j in range(i, 4):
-            feats = feats.at[:, idx].set(base_feats[:, i] * base_feats[:, j])
-            idx += 1
-
-    # Terzo ordine
-    for i in range(4):
-        for j in range(i, 4):
-            for k in range(j, 4):
-                feats = feats.at[:, idx].set(base_feats[:, i] * base_feats[:, j] * base_feats[:, k])
-                idx += 1
-
-    return jnp.concatenate([theta, feats], axis=-1)
-    
-    
-    
-    
-def augment_features_ph2345(theta):
-	"""
-	Augmentation delle features con tutti i monomi fino all'ordine 1
-	di chieff, mc, logq, eta. Compatibile con JAX e JIT.
-
-	Input:
-		theta: (..., 3) array con colonne (q, s1, s2)
-	Output:
-		(..., 3 + 4) array:
-	"""
-
-	'''
-	q = theta[:, 0]
-	s1 = theta[:, 1]
-	s2 = theta[:, 2]
-
-	chieff = (q * s1 + s2) / (1 + q)
-	eta = q / (1 + q)**2
-	mc = eta ** (3 / 5)
-	logq = jnp.log(q)
+    return (
+        q,        # 0
+        s1,       # 1
+        s2,       # 2
+        eta,      # 3
+        chieff,   # 4
+        logq,     # 5
+        mc,       # 6
+    )
 
 
+def make_augmenter(spec):
 
+    @jax.jit
+    def augment(theta):
+        theta = jnp.atleast_2d(theta)
 
-	# Concatenazione
-	feats = jnp.stack([chieff,eta,logq,mc], axis=-1)
+        feats = compute_all_features(theta)
 
-	return jnp.concatenate([theta, feats], axis=-1)
+        out = [theta]
 
-	'''
-	return theta 
-    
-    
-    
-    
-def augment_features_res(theta):
-    """
-    Augmentation di theta con tutti i monomi fino all'ordine 2
-    delle variabili: chieff, eta, logq, mc (in ordine alfabetico)
-    Input:
-        theta: (..., 3) con q, s1, s2
-    Output:
-        (..., 3 + 14) array
-    """
-    q = theta[:, 0]
-    s1 = theta[:, 1]
-    s2 = theta[:, 2]
+        for i in spec["base"]:
+            out.append(feats[i][:, None])
 
-    eta = q / (1 + q) ** 2
-    chieff = (q * s1 + s2) / (1 + q)
-    mc = eta ** (3 / 5)
-    logq = jnp.log(q)
+        for combo in spec["poly"]:
+            val = jnp.ones(theta.shape[0])
+            for i in combo:
+                val = val * feats[i]
+            out.append(val[:, None])
 
-    # Ordinamento alfabetico: chieff, eta, logq, mc
-    base_feats = jnp.stack([chieff, eta, logq, mc], axis=-1)
+        return jnp.concatenate(out, axis=1)
 
-    n_samples = theta.shape[0]
-    feats = jnp.zeros((n_samples, 14))
-    idx = 0
-
-    # Primo ordine
-    for i in range(4):
-        feats = feats.at[:, idx].set(base_feats[:, i])
-        idx += 1
-
-    # Secondo ordine
-    for i in range(4):
-        for j in range(i, 4):
-            feats = feats.at[:, idx].set(base_feats[:, i] * base_feats[:, j])
-            idx += 1
-
-
-    return jnp.concatenate([theta, feats], axis=-1)
-	
-
-
+    return augment
 
 
 
