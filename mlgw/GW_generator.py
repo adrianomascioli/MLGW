@@ -32,9 +32,7 @@ from tensorflow.python.framework.convert_to_constants import convert_variables_t
 import inspect
 sys.path.insert(1, os.path.dirname(__file__)) 	#adding to path folder where mlgw package is installed (ugly?)
 from .EM_MoE import MoE_model #WARNING commented out 
-from .ML_routines import PCA_model, add_extra_features, jac_extra_features, augment_features, \
-                                    augment_features_amp, augment_features_ph01, augment_features_ph2345, \
-									augment_features_res, build_feature_spec, make_augmenter
+from .ML_routines import PCA_model, add_extra_features, jac_extra_features, augment_features, build_feature_spec, make_augmenter
 from .NN_model import mlgw_NN
 #from .precession_helper import angle_manager, get_alpha0_beta0_gamma0, angle_params_keeper, CosinesLayer, augment_for_angles, to_polar, get_beta_trend_fast, get_fref_at_time_IMR
 from jax.scipy.special import factorial as fact
