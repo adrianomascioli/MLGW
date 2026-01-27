@@ -1926,8 +1926,8 @@ class mode_generator_NN(mode_generator_base):
 		else:
 			rec_PCA_amp, rec_PCA_ph = self.get_red_coefficients(theta) #(N,K)
 
-		rec_amp = self.amp_PCA.reconstruct_data(rec_PCA_amp) #(N,D)
-		rec_ph = self.ph_PCA.reconstruct_data(rec_PCA_ph) #(N,D)
+		rec_amp = self.amp_PCA.reconstruct_data_jax(rec_PCA_amp) #(N,D)
+		rec_ph = self.ph_PCA.reconstruct_data_jax(rec_PCA_ph) #(N,D)
 
 		return rec_amp, rec_ph
 
@@ -2042,8 +2042,8 @@ class mode_generator_MoE(mode_generator_base):
 		"""
 		rec_PCA_amp, rec_PCA_ph = self.get_red_coefficients(theta) #(N,K)
 
-		rec_amp = self.amp_PCA.reconstruct_data(rec_PCA_amp) #(N,D)
-		rec_ph = self.ph_PCA.reconstruct_data(rec_PCA_ph) #(N,D)
+		rec_amp = self.amp_PCA.reconstruct_data_jax(rec_PCA_amp) #(N,D)
+		rec_ph = self.ph_PCA.reconstruct_data_jax(rec_PCA_ph) #(N,D)
 
 		return rec_amp, rec_ph
 
@@ -2314,11 +2314,11 @@ class mode_generator_MoE(mode_generator_base):
 		#amp
 		grad_amp = np.zeros((theta.shape[0], D, theta.shape[1])) #(N,D,3)
 		for i in range(theta.shape[1]):
-			grad_amp[:,:,i] = self.amp_PCA.reconstruct_data(grad_g_amp[:,:,i]) - self.amp_PCA.PCA_params[1] #(N,D)
+			grad_amp[:,:,i] = self.amp_PCA.reconstruct_data_jax(grad_g_amp[:,:,i]) - self.amp_PCA.PCA_params[1] #(N,D)
 		#ph
 		grad_ph = np.zeros((theta.shape[0], D, theta.shape[1])) #(N,D,3)
 		for i in range(theta.shape[1]):
-			grad_ph[:,:,i] = self.ph_PCA.reconstruct_data(grad_g_ph[:,:,i]) - self.ph_PCA.PCA_params[1] #(N,D)
+			grad_ph[:,:,i] = self.ph_PCA.reconstruct_data_jax(grad_g_ph[:,:,i]) - self.ph_PCA.PCA_params[1] #(N,D)
 
 		return grad_amp, grad_ph
 

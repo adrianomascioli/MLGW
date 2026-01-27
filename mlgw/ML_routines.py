@@ -40,7 +40,7 @@ PCA_model
 			filename	file to load the model from
 		"""
 		self.PCA_params = []
-                self.PCA_params_jax = []
+		self.PCA_params_jax = []
 		if filename is not None:
 			self.load_model(filename)
 		return None
@@ -75,12 +75,15 @@ PCA_model
 		np.savetxt(filename, to_save)
 		return None 
 
-        def params_to_jax(self):
-            """Internal helper to generate PCA_params in jax numpy"""
-            if not self.PCA_params:
-                return
-            V, mu, max_PC, E = self.PCA_params
-            self.PCA_params_jax = [jnp.array(V), jnp.array(mu), jnp.array(max_PC), jnp.array(E)]
+	def params_to_jax(self):
+		"""Internal helper to generate PCA_params in jax numpy"""
+		if not self.PCA_params:
+			return
+		V, mu, max_PC, E = self.PCA_params
+		self.PCA_params_jax = [jnp.asarray(V, dtype=jnp.float64),
+                                       jnp.asarray(mu, dtype=jnp.float64),
+                                       jnp.asarray(max_PC, dtype=jnp.float64),
+                                       jnp.asarray(E, dtype=jnp.float64)]
 
 	def load_model(self, filename):
 		"""
@@ -106,10 +109,36 @@ PCA_model
 			E = data[data.shape[0]-1,:data.shape[1]-1]
 
 		self.PCA_params= [V,mu,max_PC, E]
-                self.params_to_jax()
+		self.params_to_jax()
 		return None
 
 	def reconstruct_data(self, red_data, K = None):
+		"""
+		reconstruct_data
+		================
+		Gives the best estimate of high dimensional data given the low dimensional PCA approximation.
+		Data are rescaled back to the original training measure inverting the preprocessing procedure.
+		Input:
+			red_data (N,K')	low dimensional representation of data
+			K				Number of components to be used for reconstruction. If None, all the given components will be used
+		Output:
+			data (N,D)		high dimensional reconstruction of data (after inversion of preprocessing)
+		"""
+		if K is None: #adding zeros if the compontents are not to be used
+			K = self.PCA_params[0].shape[1]
+
+		if K < self.PCA_params[0].shape[1]:
+			red_data = np.concatenate([red_data[:,:K], np.zeros((red_data.shape[0], self.PCA_params[0].shape[1]-K))], axis = 1) 
+		if red_data.shape[1]<self.PCA_params[0].shape[1]:
+			red_data = np.concatenate([red_data[:,:K], np.zeros((red_data.shape[0], self.PCA_params[0].shape[1]-red_data.shape[1]))], axis = 1) 
+		
+		red_data = np.multiply(red_data, self.PCA_params[2])
+		data = np.matmul(red_data, self.PCA_params[0].T)
+		data = data+self.PCA_params[1]
+		return data.real
+        
+
+	def reconstruct_data_jax(self, red_data, K = None):
 		"""
 		reconstruct_data
 		================
@@ -181,7 +210,7 @@ PCA_model
 			red_data = np.matmul(X, self.PCA_params[0]) #(N,K)
 			self.PCA_params[2] = np.max(np.abs(red_data), axis = 0) #(K,)
 
-                self.params_to_jax()
+		self.params_to_jax()
 
 		return E[:K].real
 
