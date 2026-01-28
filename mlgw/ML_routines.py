@@ -548,8 +548,8 @@ def build_feature_spec(features):
     if not isinstance(features, list):
         features = [features]
 
-    base_feats = set()
-    poly_feats = set()
+    base_feats = []
+    poly_feats = []
 
     for feat_str in features:
 
@@ -578,7 +578,7 @@ def build_feature_spec(features):
         # base features (first order)
         for i in feat_idx:
             if (i not in (FEATURES["q"], FEATURES["s1"], FEATURES["s2"])) and (order > 1):
-                base_feats.add(i)
+                base_feats.append(i)
 
 
 
@@ -586,11 +586,11 @@ def build_feature_spec(features):
         if order > 1:
             for k in range(2, order + 1):
                 for combo in combinations_with_replacement(feat_idx, k):
-                    poly_feats.add(combo)
+                    poly_feats.append(combo)
 
     spec = {
-        "base": tuple(sorted(base_feats)),
-        "poly": tuple(sorted(poly_feats)),
+        "base": base_feats,
+        "poly": poly_feats,
     }
 
     return spec
