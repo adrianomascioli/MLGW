@@ -534,13 +534,14 @@ def build_feature_spec(features):
     """
 	
     FEATURES = {
-	"q": 0,
-	"s1": 1,
-	"s2": 2,
-	"eta": 3,
-	"chieff": 4,
-	"logq": 5,
-	"mc": 6,
+	"chieff": 0,
+	"eta": 1,
+	"logq": 2,
+	"mc": 3,
+	"q": 4,
+	"s1": 5,
+	"s2": 6,
+	
 	}
 
 
@@ -609,13 +610,13 @@ def compute_all_features(theta):
     mc     = eta**(3.0 / 5.0)
 
     return (
-        q,        # 0
-        s1,       # 1
-        s2,       # 2
-        eta,      # 3
-        chieff,   # 4
-        logq,     # 5
-        mc,       # 6
+        chieff,   # 0
+        eta,      # 1
+        logq,     # 2
+        mc,       # 3
+		q,       # 4
+		s1,      # 5
+		s2,      # 6
     )
 
 
