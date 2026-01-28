@@ -1961,12 +1961,12 @@ class mode_generator_NN(mode_generator_base):
 		for comps, model in self.ph_models.items():
 
 			input_ = jnp.expand_dims(model["augment_features"](theta), 0)
-			amp_pred = amp_pred.at[:,comps_to_list(comps)].set(model["model"](model["params"], input_)[0][0])
+			ph_pred = amp_pred.at[:,comps_to_list(comps)].set(model["model"](model["params"], input_)[0][0])
         
 		for comps, model in self.ph_residual_models.items():
 
 			input_ = jnp.expand_dims(model["augment_features"](theta), 0)
-			amp_pred = amp_pred.at[:,comps_to_list(comps)].set(model["model"](model["params"], input_)[0][0])
+			ph_pred = amp_pred.at[:,comps_to_list(comps)].set(model["model"](model["params"], input_)[0][0])
 		
 
 
