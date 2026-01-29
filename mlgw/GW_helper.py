@@ -25,7 +25,7 @@ from tqdm import tqdm
 
 ################# Helpers with the frequency
 
-def f_min(tau, q, M):
+def f_minimum(tau, q, M):
 	"""
 	Computes the approximate minimum frequency of a waveform, given the total mass, mass ratio and the length of the reduced time grid (s/M_sun)
 	"""
@@ -258,7 +258,7 @@ create_dataset_TD
 		prefactor = 4.7864188273360336e-20 # G/c^2*(M_sun/Mpc)
 
 			#checking that all is good with modes
-		if approximant in ["SEOBNRv4PHM", "SEOBNRv4HM"]:
+		if approximant in ["SEOBNRv4PHM", "SEOBNRv4HM", "SEOBNRv5HM_ROM"]:
 			for mode in modes:
 				if mode not in [(2,2),(2,1), (3,3), (4,4), (5,5)]:
 					raise ValueError("Currently SEOBNRv4PHM approximant does not implement the chosen HMs")
@@ -368,7 +368,7 @@ create_dataset_TD
 
 			#computing f_min
 		#f_min = .9* ((151*(t_coal_freq)**(-3./8.) * (((1+q)**2)/q)**(3./8.))/(m1+m2))
-		f_min = .9*f_min(t_coal_freq, q, m1+m2)
+		f_min = .9*f_minimum(t_coal_freq, q, m1+m2)
 		 #f_min is the right scaling formula for frequency in order to get always the right reduced time
 		 #this should be multiplied by a prefactor (~1) for dealing with some small variation due to spins
 
