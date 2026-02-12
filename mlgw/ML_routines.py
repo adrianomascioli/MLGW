@@ -70,7 +70,7 @@ PCA_model
 		to_save[:D,:] = first_row
 		to_save[D,:K] = max_PC
 		to_save[D+1,:K] = E.real
-		to_save[D:,-1] = np.NAN	
+		to_save[D:,-1] = np.nan	
 
 		np.savetxt(filename, to_save)
 		return None 
@@ -80,10 +80,10 @@ PCA_model
 		if not self.PCA_params:
 			return
 		V, mu, max_PC, E = self.PCA_params
-		self.PCA_params_jax = [jnp.asarray(V, dtype=jnp.float64),
-                                       jnp.asarray(mu, dtype=jnp.float64),
-                                       jnp.asarray(max_PC, dtype=jnp.float64),
-                                       jnp.asarray(E, dtype=jnp.float64)]
+		self.PCA_params_jax = [jnp.asarray(V, dtype=jnp.float32),
+                                       jnp.asarray(mu, dtype=jnp.float32),
+                                       jnp.asarray(max_PC, dtype=jnp.float32),
+                                       jnp.asarray(E, dtype=jnp.float32)]
 
 	def load_model(self, filename):
 		"""
