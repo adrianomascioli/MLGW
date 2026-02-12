@@ -191,11 +191,11 @@ class PcaData: #needs to be cleaned up still
 class CustomLoss:
 	def custom_MSE_loss(weights):
 		weights = np.array(weights)
+		weights_tf = tf.constant(weights, dtype=tf.float32)
 		# returns the custom loss function given the weights
 		def loss_function(y_true, y_pred):
-			if len(weights) != len(y_true[0]):
-				print("the length of weights does not match amount of PCA components")
-			
+			tf.debugging.assert_equal(tf.shape(y_true)[1], tf.shape(weights_tf)[0],
+						 message="the length of weights does not match amount of PCA components")
 			loss = tf.square((y_true - y_pred) * weights )
 			return tf.math.reduce_mean(loss, axis=-1)
 		
@@ -203,13 +203,11 @@ class CustomLoss:
 
 	def custom_exp_loss(exp, weights):
 		weights = np.array(weights)
-		
+		weights_tf = tf.constant(weights, dtype=tf.float32)
 		def loss_function(y_true, y_pred):
-			if len(weights) != len(y_true[0]):
-				print("the length of weights does not match amount of PCA components")
-			
+			tf.debugging.assert_equal(tf.shape(y_true)[1], tf.shape(weights_tf)[0],
+						 message="the length of weights does not match amount of PCA components")
 			loss = tf.abs((y_true - y_pred)*weights)**exp
-			
 			return tf.math.reduce_mean(loss, axis=-1)
 		
 		return loss_function
