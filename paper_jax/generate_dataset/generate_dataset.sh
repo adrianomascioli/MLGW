@@ -1,0 +1,1 @@
+python pyseobnr_dataset.py --n-wfs 68000 --n-grid 2000 --modes 22 21 33 44 55 --t-coal 2. --t-step 1e-4 --alpha 0.5 --approximant SEOBNRv5HM --q-range 1. 10. --s1-range -0.9 0.9 --s2-range -0.9 0.9 --basefilename dataset_BBH/SEOBNRv5HM 
