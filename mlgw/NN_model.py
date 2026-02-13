@@ -85,6 +85,10 @@ class PcaData: #needs to be cleaned up still
 			self.train_var = train_var[:N,PC_comp]
 			self.test_var = test_var[:,PC_comp]
 
+		#This augmentation should not happen here. This is the class that loads PCA model and should just load, not augmenting.
+		#The augmentation should happen at the level of the training of the NN
+		#But still if features=[] these commands are not doing anything, so it's safe, because there's no feature stored
+		#in the pca model
 		#self.augment_features()
 		self.train_theta = augment_features(self.train_theta, features = self.features)
 		self.test_theta = augment_features(self.test_theta, features = self.features)
@@ -304,22 +308,36 @@ class Optimizers:
 				self.lr = "default"
 
 class mlgw_NN(keras.Sequential):
-	def __init__(self, layers = None, name = None, features=None):
-		if name is None: name = 'sequential'
-		if isinstance(features, str): features = [features]
-		if features is None: features = ['']
 
-		id_ = name.find('---')
-		if id_ == -1:
-			name = name +'---' + '--'.join(features)
-		else:
-			if features[0] == '':
-				feat_str = name[id_+3:]
-				features = feat_str.split('--')
-			else:
-				name = name[:id_+3] + '--'.join(features)
-		super().__init__(layers, name)
-		self.features = [f.strip() for f in features]
+	def __init__(self, layers=None, name = 'sequential', features=None, **kwargs):
+		super().__init__(layers=layers, name=name, **kwargs)
+		
+		#Removing unsupported arguments for Sequential
+		#kwargs.pop("dtype", None)
+		#kwargs.pop("trainable", None)
+		#kwargs.pop("build_input_shape", None)
+
+		if isinstance(features, str):
+			features = [features]
+
+		self.features = features or []
+
+#	def __init__(self, layers = None, name = None, features=None):
+#		if name is None: name = 'sequential'
+#		if isinstance(features, str): features = [features]
+#		if features is None: features = ['']
+#
+#		id_ = name.find('---')
+#		if id_ == -1:
+#			name = name +'---' + '--'.join(features)
+#		else:
+#			if features[0] == '':
+#				feat_str = name[id_+3:]
+#				features = feat_str.split('--')
+#			else:
+#				name = name[:id_+3] + '--'.join(features)
+#		super().__init__(layers, name)
+#		self.features = [f.strip() for f in features]
 
 	def fit(self, x = None, y = None, epochs = None, validation_data=None, batch_size=None, callbacks=None, **kwargs):
 		if x.shape[-1] == 3:
@@ -331,27 +349,50 @@ class mlgw_NN(keras.Sequential):
 
 	def predict(self, x, **kwargs):
 		if x.shape[-1] == 3:
+			print(type(x), x.shape)
+			print('\n Inside predict():', self.features)
 			x = augment_features(x, features=self.features)
 		return super().predict(x, **kwargs)
 
-	@classmethod
-	def load_from_folder(cls, model_loc, name = None):
-		model_loc = str(model_loc)
-		nn_file = glob.glob(model_loc+'*keras')
-		assert len(nn_file)	== 1, "More than one neural network model is in the given folder!"
+	def get_config(self):
+		base_config = super().get_config()
+		config = {
+			"features":self.features,
+		}
+		return {**base_config, **config}
 
-		return cls.load_weights_and_features(nn_file[0], feat_file[0], name)
-	
 	@classmethod
-	def load_from_file(cls, nn_file, name = None):
-		with tf.keras.utils.CustomObjectScope({'mlgw_NN': mlgw_NN}):
-			model = keras.models.load_model(nn_file, compile=False)
-		if name is None: name = model.name
+	def from_config(cls, config):
+		features = config.pop("features", None)
+		model = super(mlgw_NN, cls).from_config(config)
+		model.features = features or []
 		
-		if nn_file.endswith(".h5") or nn_file.endswith(".hdf5"):
-			return cls(model.layers, name, features = model.features)
-		else:
-			return cls(model.layers, name, features = None) 
+		return model
+
+	@classmethod
+	def load_from_file(cls, nn_file):
+		return keras.models.load_model(nn_file, custom_objects={"mlgw_NN" : cls}, compile=False)
+
+#	#This is broken, load_weights_and_features doesn't exist anymore
+#	@classmethod
+#	def load_from_folder(cls, model_loc, name = None):
+#		model_loc = str(model_loc)
+#		nn_file = glob.glob(model_loc+'*keras')
+#		assert len(nn_file)	== 1, "More than one neural network model is in the given folder!"
+#
+#		return cls.load_weights_and_features(nn_file[0], feat_file[0], name)
+	
+
+#	@classmethod
+#	def load_from_file(cls, nn_file, name = None):
+#		with tf.keras.utils.CustomObjectScope({'mlgw_NN': mlgw_NN}):
+#			model = keras.models.load_model(nn_file, compile=False)
+#		if name is None: name = model.name
+#		print(model.features)
+#		if nn_file.endswith(".h5") or nn_file.endswith(".hdf5"):
+#			return cls(model.layers, name, features = model.features)
+#		else:
+#			return cls(model.layers, name, features = None) 
 
 	
 class NN_HyperModel(HyperModel):
@@ -578,7 +619,7 @@ def fit_NN(fit_type, in_folder, out_folder, hyperparameters, N_train = None, com
 		#loading data
 	PCA_data = PcaData(in_folder, comp_to_fit, fit_type, features=features, N=N_train)
 	#print("Training parameters: ", PCA_data.train_var[0])
-	#print("Features used: ", PCA_data.features)
+	print("Features used: ", PCA_data.features)
 	print("Using "+str(PCA_data.train_var.shape[0])+" train data")
 	
 	D = PCA_data.train_theta.shape[1] #dimensionality of input space for NN
@@ -658,7 +699,7 @@ def create_residual_PCA(pca_data_loc, base_model_file, save_loc, quantity, compo
 
 	#load in the model
 	M = mlgw_NN.load_from_file(base_model_file)
-
+	print(M.name, M.features)
 	#do the predictions with the model
 
 	train_pred = M.predict(data.train_theta)[:,components]
