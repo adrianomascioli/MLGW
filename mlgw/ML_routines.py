@@ -190,7 +190,7 @@ PCA_model
 		Output:
 			E (K,)	eigenvalues of the first K principal components
 		"""
-		X = X.astype(np.float128)
+		X = X.astype(np.longdouble)
 		mu = np.mean(X,0) #(D,)
 		X = X - mu
 
