@@ -1849,7 +1849,7 @@ class mode_generator_NN(mode_generator_base):
 
 		# --- Load NN models ---
 		for q_str in ['amp', 'ph']:
-			for nn_file in glob.glob(str(folder / f"{q_str}*[0-9]*h5")):
+			for nn_file in glob.glob(str(folder / f"{q_str}*[0-9]*keras")):
 				print(nn_file)
 				if 'residual' in nn_file:
 					comps = re.findall(r'_[0-9]+_', nn_file)
