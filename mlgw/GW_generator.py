@@ -124,7 +124,7 @@ class GW_generator:
 	Some default models are already included in the package.
 	"""
 
-	def __init__(self, folder = 0, verbose = False):
+	def __init__(self, folder = 4, verbose = False):
 		"""
 		Initialise class by loading the modes from file.
 		A number of pre-fitted models for the modes are released: they can be loaded with folder argument by specifying an integer index (default 0. They are all saved in "__dir__/TD_models/model_(index_given)". A list of the available models can be listed with list models().
