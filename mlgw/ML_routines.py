@@ -617,7 +617,9 @@ def build_feature_spec(features):
 
         # base features (first order)
         for i in feat_idx:
-            if (i not in (FEATURES["q"], FEATURES["s1"], FEATURES["s2"])) and (order > 1):
+	     if (i not in (FEATURES["q"], FEATURES["s1"], FEATURES["s2"])):
+		base_feats.append(i)
+         #   if (i not in (FEATURES["q"], FEATURES["s1"], FEATURES["s2"])) and (order > 1):
                 base_feats.append(i)
 
 
