@@ -1871,7 +1871,10 @@ class mode_generator_NN(mode_generator_base):
                 # --- Load and convert model ---
 				
 				new_model = mlgw_NN.load_from_file(nn_file)
+				#DEBUG
+				print(new_model.features)
 				feature_spec = build_feature_spec(new_model.features)
+				print(' \n features_spec: ', feature_spec)
 				augmenter = make_augmenter(feature_spec)
 				tf_function = tf.function(new_model, input_signature=(tf.TensorSpec(shape=new_model.inputs[0].shape, dtype=tf.float32),))
 				jax_fn, params = tf2jax.convert(tf_function)
@@ -1950,26 +1953,23 @@ class mode_generator_NN(mode_generator_base):
 		
 		amp_pred = jnp.zeros((theta.shape[0], self.amp_PCA.get_dimensions()[1]))
 		ph_pred = jnp.zeros((theta.shape[0], self.ph_PCA.get_dimensions()[1]))
-		
-
+	
 
 		for comps, model in self.amp_models.items():
-
-			input_ = jnp.expand_dims(model["augment_features"](theta), 0)
+			
+			input_ = model["augment_features"](theta)
 			amp_pred = amp_pred.at[:,comps_to_list(comps)].set(model["model"](model["params"], input_)[0][0])
-		
+				
 		for comps, model in self.ph_models.items():
 
-			input_ = jnp.expand_dims(model["augment_features"](theta), 0)
+			input_ = model["augment_features"](theta)	
 			ph_pred = ph_pred.at[:,comps_to_list(comps)].set(model["model"](model["params"], input_)[0][0])
         
 		for comps, model in self.ph_residual_models.items():
 
-			input_ = jnp.expand_dims(model["augment_features"](theta), 0)
+			input_ = model["augment_features"](theta)
 			ph_pred = ph_pred.at[:,comps_to_list(comps)].add( model["model"](model["params"], input_)[0][0]*self.ph_res_coefficients[comps] )
 		
-
-
 		
 		return amp_pred, ph_pred
 

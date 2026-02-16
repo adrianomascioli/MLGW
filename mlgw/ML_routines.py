@@ -612,16 +612,10 @@ def build_feature_spec(features):
             raise ValueError(f"Unknown feature '{e.args[0]}'")
 
 
-		##### THIS WILL BE MODIFIED WHEN NEW TRAININGS WILL BE DONE. THE MODEL BASED ON SEOBNRv4 IS WRONG AND DOES NOT 
-		##### CONSIDER THE AUGMENTATION WHEN ORDER IS = 1
-
         # base features (first order)
         for i in feat_idx:
-	     if (i not in (FEATURES["q"], FEATURES["s1"], FEATURES["s2"])):
-		base_feats.append(i)
-         #   if (i not in (FEATURES["q"], FEATURES["s1"], FEATURES["s2"])) and (order > 1):
+            if (i not in (FEATURES["q"], FEATURES["s1"], FEATURES["s2"])):
                 base_feats.append(i)
-
 
 
         # higher-order terms
