@@ -6,7 +6,7 @@ optimizer : Nadam with learning rate 0.001
 activation : sigmoid
 batch_size : 128
 schedulers : exponential with decay rate -0.0003
-The MSE of principal component 0 of the fit is: 9.231736863104918e-08
-The MSE of principal component 1 of the fit is: 0.00015817349453653776
-The MSE of principal component 2 of the fit is: 0.00014230755556853312
-The MSE of principal component 3 of the fit is: 0.0001579178905870914
+The MSE of principal component 0 of the fit is: 6.246432026846668e-06
+The MSE of principal component 1 of the fit is: 0.00015637991662101287
+The MSE of principal component 2 of the fit is: 0.0017248879868165601
+The MSE of principal component 3 of the fit is: 0.011535797971430539
