@@ -1798,7 +1798,7 @@ class mode_generator_NN(mode_generator_base):
 		
 			#Loading neural networks
 		for q_str in ['amp', 'ph']:
-			for nn_file in glob.glob(str(folder)+'/{}*[0-9]*h5'.format(q_str)):
+			for nn_file in glob.glob(str(folder)+'/{}*[0-9]*keras'.format(q_str)):
 
 					#Loading residuals
 				if nn_file.find('residual')>-1:
