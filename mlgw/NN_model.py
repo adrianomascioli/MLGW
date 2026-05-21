@@ -306,22 +306,15 @@ class Optimizers:
 				self.lr = "default"
 
 class mlgw_NN(keras.Sequential):
-	def __init__(self, layers = None, name = None, features=None):
-		if name is None: name = 'sequential'
-		if isinstance(features, str): features = [features]
-		if features is None: features = ['']
 
-		id_ = name.find('---')
-		if id_ == -1:
-			name = name +'---' + '--'.join(features)
-		else:
-			if features[0] == '':
-				feat_str = name[id_+3:]
-				features = feat_str.split('--')
-			else:
-				name = name[:id_+3] + '--'.join(features)
-		super().__init__(layers, name)
-		self.features = [f.strip() for f in features]
+	def __init__(self, layers=None, name = 'sequential', features=None, **kwargs):
+		super().__init__(layers=layers, name=name, **kwargs)
+
+		if isinstance(features, str):
+			features = [features]
+
+		self.features = features or []
+
 
 	def fit(self, x = None, y = None, epochs = None, validation_data=None, batch_size=None, callbacks=None, **kwargs):
 		if x.shape[-1] == 3:
@@ -336,6 +329,26 @@ class mlgw_NN(keras.Sequential):
 			x = augment_features(x, features=self.features)
 		return super().predict(x, **kwargs)
 
+	def get_config(self):
+		base_config = super().get_config()
+		config = {
+			"features":self.features,
+		}
+		return {**base_config, **config}
+
+	@classmethod
+	def from_config(cls, config):
+		features = config.pop("features", None)
+		model = super(mlgw_NN, cls).from_config(config)
+		model.features = features or []
+		
+		return model
+
+	@classmethod
+	def load_from_file(cls, nn_file):
+		return keras.models.load_model(nn_file, custom_objects={"mlgw_NN" : cls}, compile=False)
+
+
 	@classmethod
 	def load_from_folder(cls, model_loc, name = None):
 		model_loc = str(model_loc)
@@ -344,12 +357,6 @@ class mlgw_NN(keras.Sequential):
 
 		return cls.load_weights_and_features(nn_file[0], feat_file[0], name)
 	
-	@classmethod
-	def load_from_file(cls, nn_file, name = None):
-		with tf.keras.utils.CustomObjectScope({'mlgw_NN': mlgw_NN}):
-			model = keras.models.load_model(nn_file, compile=False)
-		if name is None: name = model.name
-		return cls(model.layers, name, features = None)
 	
 class NN_HyperModel(HyperModel):
 	def __init__(self,  output_nodes, hyperparameter_ranges, loss_weights):
