@@ -1,0 +1,12 @@
+Model for 0123PCs for amp
+Trained on dataset: ../pca/32
+created model with params: 
+layer_list : [35]
+optimizer : Nadam with learning rate 0.001
+activation : sigmoid
+batch_size : 128
+schedulers : exponential with decay rate -0.0003
+The MSE of principal component 0 of the fit is: 1.7714409783768127e-05
+The MSE of principal component 1 of the fit is: 0.0008897033413470677
+The MSE of principal component 2 of the fit is: 0.00014695086327431124
+The MSE of principal component 3 of the fit is: 0.0006201206981551516
