@@ -1823,14 +1823,14 @@ class mode_generator_NN(mode_generator_base):
 
 			
 				new_model = mlgw_NN.load_from_file(nn_file)
-				if "amp" in nn_file:
-					new_model.features = ['1-mc_chieff']
-				elif "ph_weights_01" in nn_file and "residual" not in nn_file:
-					new_model.features = ['3-mc_eta_logq_chieff']
-				elif "ph_weights_2345" in nn_file:
-					new_model.features = ['1-mc_chieff']
-				else:
-					new_model.features = ['2-mc_eta_logq_chieff']
+				#if "amp" in nn_file:
+				#	new_model.features = ['1-mc_chieff']
+				#elif "ph_weights_01" in nn_file and "residual" not in nn_file:
+				#	new_model.features = ['3-mc_eta_logq_chieff']
+				#elif "ph_weights_2345" in nn_file:
+				#	new_model.features = ['1-mc_chieff']
+				#else:
+				#	new_model.features = ['2-mc_eta_logq_chieff']
 				
 
 				
