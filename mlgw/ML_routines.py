@@ -484,7 +484,7 @@ def augment_features(theta, features):
 		else:
 			raise ValueError("Each input feature must be a string")
 		
-		if not (features_ and order>1): continue
+		if not features_ : continue
 
 		features_.sort()
 		feat_list = []
