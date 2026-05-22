@@ -1716,7 +1716,7 @@ class mode_generator_base():
 		if isinstance(self, mode_generator_NN):
 				#FIXME: make this consistent and not super random as it is now
 			nu = theta_std[:,0]/(1 + theta_std[:,0])**2
-			phi_diff = {(2,2):0, (2,1):np.pi/2, (3,3): -np.pi/2, (4,4):np.pi, (5,5): np.pi/2}			
+			phi_diff = {(2,2):0, (2,1):np.pi/2, (3,3): -np.pi/2, (4,4):np.pi, (5,5): np.pi/2, (3,2): 0, (4,3): -np.pi/2}
 		else:
 			nu, phi_diff = 1, {self.mode: 0}
 		amp = (new_amp.T*nu).T
