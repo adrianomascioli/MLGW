@@ -24,18 +24,6 @@ waveform = fd_WF(jnp.array([20,10,0.5,-0.3, 1.43, 1.3, 2.3])) #physical paramete
 
 ## Installation
 
-To install the latest dev version, you can do
-
-```Bash
-pip install git+https://github.com/stefanoschmidt1995/MLGW.git
-```
-
-The latest version of the package will be released on the PyPI repository. In that case, you can do:
-
-```Bash
-pip install mlgw
-```
-
 ## How to train the model
 
 The model can be trained with some ready to use commands. If you installed the packaged normally, they should be already available in your shell.
