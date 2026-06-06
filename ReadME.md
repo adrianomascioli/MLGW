@@ -3,16 +3,24 @@ MLGW-JAX is a Machine Learning surrogate compatible with the Google Python packa
 
 The model outputs the waveform in frequency and/or time domain when given the two BHs masses and spins.The JAX implementation makes the framework significantly faster than the standard version, with performance gains being particularly pronounced when executed on GPU devices. This is enabled by JAX's native support for parallelization and vectorization through functionalities such as vmap. Compatibility with just-in-time (JIT) compilation plays a crucial role in accelerating computations, while JAX's automatic differentiation capabilities make the tool especially powerful for rapid parameter estimation when coupled with gradient-based sampling algorithms.
 
-To generate a WF:
+To generate a WF in frequency domain:
 ```Python
+
+import jax
+import jax.numpy as jnp
 import mlgw
-import numpy as np
-generator = mlgw.GW_generator() #creating an istance of the generator
-theta = np.array([20,10,0.5,-0.3, 1.43, 1.3, 2.3]) #physical parameters [m1,m2,s1,s2, d_L, iota, phi]
-times = np.linspace(-8,0.02, 100000) #time grid at which waves shall be evaluated
-h_p, h_c = generator.get_WF(theta, times) #returns amplitude and phase of the wave
+from mlgw import GW_FD_generator as fd_gen
+
+
+gen = fd_gen.GW_FD_generator(duration=8, sampling_frequency=4096, final_time=0.1, modes=(2,2))
+
+@jax.jit
+def fd_WF(theta_):
+  WF_dic = gen.frequency_domain_strain(theta_)
+  return WF_dic
+  
+waveform = fd_WF(jnp.array([20,10,0.5,-0.3, 1.43, 1.3, 2.3])) #physical parameters [m1,m2,s1,s2, d_L, iota, phi]
 ```
-You can read much more details about the model in the [thesis](https://github.com/stefanoschmidt1995/MLGW/raw/master/docs/img/schmidt_thesis.pdf "Thesis").
 
 ## Installation
 
