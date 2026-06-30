@@ -14,10 +14,36 @@ import glob
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-from keras_tuner import BayesianOptimization, HyperModel
+# keras_tuner is only needed for training — make it optional for inference
+try:
+    from keras_tuner import BayesianOptimization, HyperModel
+    _keras_tuner_available = True
+except ImportError:
+    _keras_tuner_available = False
+    HyperModel = object  # fallback so the NN_HyperModel class definition doesn't crash
 import tensorflow as tf
 from tensorflow import keras
-from GW_helper import compute_optimal_mismatch
+
+# Compatibility patch: model files saved with Keras 3 use 'batch_shape' and
+# 'optional' in InputLayer configs; Keras 2 does not accept these kwargs.
+def _patch_input_layer_compat(cls):
+	if getattr(cls, '_mlgw_compat_patch', False):
+		return
+	_orig_init = cls.__init__
+	def _patched_init(self, *args, **kwargs):
+		if 'batch_shape' in kwargs and 'batch_input_shape' not in kwargs:
+			kwargs['batch_input_shape'] = kwargs.pop('batch_shape')
+		kwargs.pop('optional', None)
+		return _orig_init(self, *args, **kwargs)
+	cls.__init__ = _patched_init
+	cls._mlgw_compat_patch = True
+
+_patch_input_layer_compat(tf.keras.layers.InputLayer)
+# GW_helper.compute_optimal_mismatch is only used during training
+try:
+    from GW_helper import compute_optimal_mismatch
+except ImportError:
+    compute_optimal_mismatch = None
 from ML_routines import PCA_model, augment_features
 from keras.layers import Dense
 from keras.optimizers import Nadam
@@ -307,6 +333,19 @@ class Optimizers:
 				self.opt = tf.keras.optimizers.Adamax()
 				self.lr = "default"
 
+def _strip_keras3_config(obj):
+	"""Recursively strip/convert Keras 3-specific config fields for Keras 2 compatibility."""
+	if isinstance(obj, dict):
+		# DTypePolicy is Keras 3 only; convert to a plain dtype string for Keras 2
+		if obj.get('class_name') == 'DTypePolicy' and 'config' in obj:
+			return obj['config'].get('name', 'float32')
+		return {k: _strip_keras3_config(v) for k, v in obj.items()
+				if k != 'quantization_config'}
+	if isinstance(obj, list):
+		return [_strip_keras3_config(item) for item in obj]
+	return obj
+
+
 class mlgw_NN(keras.Sequential):
 
 	def __init__(self, layers=None, name = 'sequential', features=None, **kwargs):
@@ -363,6 +402,7 @@ class mlgw_NN(keras.Sequential):
 
 	@classmethod
 	def from_config(cls, config):
+		config = _strip_keras3_config(config)
 		features = config.pop("features", None)
 		model = super(mlgw_NN, cls).from_config(config)
 		model.features = features or []
@@ -370,8 +410,87 @@ class mlgw_NN(keras.Sequential):
 		return model
 
 	@classmethod
+	def _build_from_layer_specs(cls, cfg):
+		"""
+		Build a mlgw_NN model by parsing the layers list directly.
+		Handles both Keras 2.x (batch_input_shape) and 3.x (batch_shape/DTypePolicy)
+		config formats without relying on keras.Sequential.from_config().
+		"""
+		from keras.layers import Dense as _Dense
+
+		features = cfg.get('features') or []
+		if isinstance(features, str):
+			features = [features]
+
+		input_shape = None
+		dense_specs = []
+
+		for layer_cfg in cfg.get('layers', []):
+			class_name = layer_cfg.get('class_name', '')
+			lc = layer_cfg.get('config', {})
+
+			if class_name == 'InputLayer':
+				bs = lc.get('batch_shape') or lc.get('batch_input_shape')
+				if bs:
+					input_shape = tuple(s for s in bs if s is not None)  # drop None batch dim
+			elif class_name == 'Dense':
+				units = lc['units']
+				act = lc.get('activation', 'linear')
+				# Keras 3.x may store activation as a dict; extract the name
+				if isinstance(act, dict):
+					act = act.get('config', {}).get('activation') or act.get('class_name', 'linear')
+				dense_specs.append((units, act))
+
+		model = cls(name=cfg.get('name', 'mlgw_nn'), features=features)
+		if input_shape:
+			model.add(keras.layers.InputLayer(input_shape=input_shape))
+		for units, activation in dense_specs:
+			model.add(_Dense(units, activation=activation))
+
+		return model
+
+	@classmethod
 	def load_from_file(cls, nn_file):
-		return keras.models.load_model(nn_file, custom_objects={"mlgw_NN" : cls}, compile=False)
+		import zipfile as _zf, json as _json, io as _io, h5py as _h5py, numpy as _np, re as _re
+
+		with _zf.ZipFile(nn_file, 'r') as z:
+			config = _json.loads(z.read('config.json'))
+			weights_bytes = z.read('model.weights.h5')
+
+		model = cls._build_from_layer_specs(config['config'])
+
+		# Keras-3 .keras files store the trained weights under
+		# layers/<name>/vars/<i> (older checkpoints used
+		# _layer_checkpoint_dependencies). The previous loader only looked for
+		# the latter, so on these files it found nothing and silently returned a
+		# RANDOMLY-INITIALISED network. Read whichever group exists, order the
+		# layers by NUMERIC index (a lexicographic sort puts dense_10 before
+		# dense_2), and assign positionally to the model layers' weights. Fail
+		# loudly on a count mismatch so we never run an untrained network again.
+		def _lidx(name):
+			nums = _re.findall(r'\d+', name)
+			return int(nums[-1]) if nums else 0
+		with _h5py.File(_io.BytesIO(weights_bytes), 'r') as h:
+			src = h.get('layers')
+			if src is None:
+				src = h.get('_layer_checkpoint_dependencies')
+			all_weights = []
+			if src is not None:
+				for nm in sorted(src.keys(), key=_lidx):
+					g = src[nm]
+					if 'vars' in g:
+						vars_grp = g['vars']
+						for i in sorted(vars_grp.keys(), key=int):
+							all_weights.append(_np.array(vars_grp[i]))
+			model_weights = [w for layer in model.layers for w in layer.weights]
+			if len(all_weights) != len(model_weights):
+				raise RuntimeError(
+					"mlgw weight load: %d weights in file vs %d in model — "
+					"refusing to run an untrained network." % (
+						len(all_weights), len(model_weights)))
+			for w, data in zip(model_weights, all_weights):
+				w.assign(data)
+		return model
 
 #	#This is broken, load_weights_and_features doesn't exist anymore
 #	@classmethod
