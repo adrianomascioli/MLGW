@@ -28,7 +28,10 @@ import numpy as np
 import ast
 import tensorflow as tf
 from tensorflow.keras import models as keras_models
-from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
+try:  # internal API path moved in TF >= 2.16; guard for forward compatibility
+    from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
+except ImportError:
+    convert_variables_to_constants_v2 = None
 import inspect
 sys.path.insert(1, os.path.dirname(__file__)) 	#adding to path folder where mlgw package is installed (ugly?)
 from .EM_MoE import MoE_model #WARNING commented out 
@@ -1238,9 +1241,9 @@ class GW_generator:
 					sin_h ** (n - m + 2 * s) / \
 					(fact(l + m - s) * fact(s) *
 					fact(n - m + s) * fact(l - n - s))
-			return acc + jax.lax.cond(in_range, lambda: jnp.squeeze(term), lambda: jnp.array(0.0))
+			return acc + jnp.where(in_range, term, jnp.zeros_like(term))
 
-		total = jax.lax.fori_loop(0, 2 * l + 1, body, 0.0)
+		total = jax.lax.fori_loop(0, 2 * l + 1, body, jnp.zeros_like(cos_h))
 		return pref * total
 
 	'''
